@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<style>
+    body {
+        text-align: center;
+    }
+
+    .block {
+        display: block;
+        margin: auto;
+        padding: 8px;
+    }
+</style>
+<body>
+<h1 id="title">Loading..</h1>
+<div>
+    <form action="vote" method="post" onsubmit="setLastVote(current.title)">
+        <label class="block">
+            Name : <input id="name" type="text" name="name" required placeholder="name">
+        </label>
+        <div id="vote-ui">
+            <label class="block">
+                Choice :
+                <div id="choice"></div>
+            </label>
+            <div id="submit" class="block">
+                <input type="submit">
+            </div>
+        </div>
+
+        <div id="status" class="block">
+            Voted by 0 people
+        </div>
+    </form>
+</div>
+</body>
+<script>
+    let current = {}
+    let name = localStorage.getItem('name')
+
+    async function refresh() {
+        current = await fetch("current").then(it => it.json()).catch(_ => new Map)
+        document.getElementById('status').innerText = `Voted by ${current.voted || 0} people(s)`
+        loadSession(current)
+    }
+
+    refresh()
+    setInterval(refresh, 2000)
+
+    let lastVote = localStorage.getItem("lastVote") || ""
+    const title = document.getElementById('title')
+
+    document.getElementById('name').value = name
+    document.getElementById('name').onchange = function (ev) {
+        localStorage.setItem('name', ev.target.value)
+    }
+
+    function choice() {
+        return document.getElementById('choice')
+    }
+
+    function hide(e) {
+        e.style.display = 'none'
+    }
+
+    function show(e) {
+        e.style.display = 'block'
+    }
+
+    let old = []
+
+    /**
+     * @template T
+     * @param a {T[]}
+     * @param b {T[]}
+     * @return boolean
+     */
+    function arrayEquals(a, b) {
+        if (!a || !b || a.length !== b.length) return false
+        for (let i = 0, len = a.length; i < len; i++) {
+            if (a[i] != b[i]) return false
+        }
+        return true
+    }
+
+    function setLastVote(name) {
+        localStorage.setItem("lastVote", name)
+    }
+
+    function loadSession(obj) {
+        if (obj.title) {
+            title.innerText = obj.title
+            if (obj.title === lastVote) {
+                // duplicate
+                hide(document.getElementById('vote-ui'))
+                hide(document.getElementById('submit'))
+                old = undefined
+                choice().innerHTML = ''
+            } else {
+                show(document.getElementById('vote-ui'))
+                show(document.getElementById('submit'))
+                if (obj.choices && obj.choices.length) {
+                    if (arrayEquals(old, obj.choices)) return
+                    old = obj.choices
+                    choice().innerHTML = `<select name="choice">${old.map(it => `<option value="${it}">${it}</option>`)}</select>`
+                } else {
+                    if (old === false) return
+                    old = false
+                    choice().innerHTML = `<input type="text" name="choice" required>`
+                }
+            }
+        } else {
+            old = undefined
+            hide(document.getElementById('vote-ui'))
+            hide(document.getElementById('submit'))
+            title.innerText = "No vote available"
+            choice().innerHTML = ''
+        }
+    }
+</script>
+</html>
