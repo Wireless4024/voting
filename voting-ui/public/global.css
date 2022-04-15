@@ -1,0 +1,58 @@
+.container {
+	margin: 0 auto;
+	max-width: 1280px;
+	width: 95%;
+}
+
+@media only screen and (min-width: 601px) {
+	.container {
+		width: 90%;
+	}
+}
+
+@media only screen and (min-width: 993px) {
+	.container {
+		width: 80%;
+	}
+}
+
+.mdc-data-table__cell {
+	text-overflow: clip !important;
+}
+
+.cell-center {
+	padding: 42%;
+	cursor: pointer;
+}
+
+.cell-title {
+	font-weight: 900 !important;
+	text-align: center !important;
+}
+
+.half {
+	display: block;
+}
+
+.center {
+	margin: auto;
+	text-align: center;
+}
+
+.block {
+	display: block;
+}
+
+.m16{
+	margin: 16px 0;
+}
+
+.participant{
+	display: inline-block;
+	margin-right: 4px
+}
+
+.participant:not(:first-child){
+	padding-left: 4px;
+	border-left: gray 1px solid;
+}

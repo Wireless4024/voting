@@ -1,0 +1,26 @@
+@use 'sass:color';
+
+@use '@material/theme/color-palette';
+
+// Svelte Colors!
+@use '@material/theme/index' as theme with (
+  $primary: color-palette.$deep-orange-400,
+  $secondary: color-palette.$orange-200,
+  $surface: color-palette.$grey-100,
+  $background: color-palette.$grey-100,
+  $error: color-palette.$red-300
+);
+
+html,
+body {
+  background-color: theme.$surface;
+  color: color-palette.$grey-900;
+}
+
+a {
+  color: color-palette.$grey-700;
+}
+
+a:visited {
+  color: color-palette.$grey-500;
+}

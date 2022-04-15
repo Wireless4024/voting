@@ -1,73 +1,60 @@
 package com.wireless4024.voting
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.wireless4024.voting.common.StatusResponse
+import com.wireless4024.voting.common.apiError
+import com.wireless4024.voting.common.ok
+import com.wireless4024.voting.jira.JiraIssue
+import com.wireless4024.voting.jira.JiraStore
+import com.wireless4024.voting.jira.TIME_CHOICES
+import com.wireless4024.voting.session.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.server.reactive.ServerHttpResponse
 import org.springframework.web.bind.annotation.*
 import java.io.File
-import java.io.Writer
 import java.net.URI
 
-data class NewSession(val title: String, val have_choice: Boolean?, val choices: String)
+typealias JiraVoteSession = Session<JiraIssue, Int>?
 
-data class SessionVote(val name: String, val choice: String)
-open class Empty {
-	open fun strip() = this
-}
-
-data class Session(val title: String, val choices: Array<String>, val votes: MutableList<SessionVote>) : Empty() {
-	override fun strip(): Empty {
-		return SessionStat(this.title, this.choices, votes.size)
-	}
-
-	fun summary(writer: Writer) {
-		val counter = mutableMapOf<String, Int>()
-		votes.forEach {
-			counter.compute(it.choice) { k, v ->
-				(v ?: 0) + 1
-			}
-		}
-		val list = counter.entries.toMutableList()
-		list.sortByDescending { it.value }
-		writer.write("No.\tChoice\n- - - -\n")
-		list.forEach {
-			writer.write(it.value.toString())
-			writer.write("\t")
-			writer.write(it.key)
-			writer.write("\n")
-		}
-	}
-}
-
-data class SessionStat(val title: String, val choices: Array<String>, val voted: Int) : Empty()
-
-data class VoteData(val name: String, val choice: String)
+var currentSession: JiraVoteSession = null
 
 @Suppress("unused")
 @RestController
 class VotingController {
+	var logger: Logger = LoggerFactory.getLogger(VotingController::class.java)
+
+	private val json: ObjectMapper = ObjectMapper()
+
+	@Value("\${voting.access-token}")
+	var accessToken = ""
+
+	@Autowired
+	private lateinit var voteBoardcaster: VotingWebsocketHandler
+
 	init {
 		File("votes").mkdirs()
 	}
 
-	var currentSession: Session? = null
-
 	@PostMapping("/create_new")
-	fun createSession(@ModelAttribute form: NewSession, resp: ServerHttpResponse) {
-		currentSession = when (form.have_choice) {
-			true -> Session(
-				form.title, form.choices.split("\n")
-					.asSequence()
-					.map(String::trim)
-					.filter(String::isNotEmpty)
-					.toList()
-					.toTypedArray(), mutableListOf()
-			)
-			else -> Session(form.title, arrayOf(), mutableListOf())
-		}
-		resp.redirect("session.html")
+	suspend fun createSession(
+		@RequestParam("token") token: String,
+		@ModelAttribute form: NewSession,
+		resp: ServerHttpResponse
+	): StatusResponse<SessionBase> {
+		if (token != accessToken) return apiError("")
+
+		val issue = JiraStore[form.key] ?: return apiError("Issue unavailable")
+		val newSession = Session(issue, TIME_CHOICES)
+		currentSession = newSession
+		voteBoardcaster.boardcast(newSession.strip())
+		return ok(newSession)
 	}
 
 	private fun ServerHttpResponse.redirect(url: String) {
@@ -75,72 +62,92 @@ class VotingController {
 		headers.location = URI.create(url)
 	}
 
-	private val safePath = Regex("[&$#@\n\t\\s.\\\\/\\[\\])(+?><%*\\-^]+")
-
-	@GetMapping("/end")
-	suspend fun endMapping(resp: ServerHttpResponse) {
-		val current = currentSession
-		if (current != null && current.votes.isNotEmpty()) {
-			val name = current.title.replace(safePath, "-")
-			withContext(Dispatchers.IO) {
-				File("votes/${name}.txt")
-					.outputStream()
-					.bufferedWriter()
-					.use {
-						it.write("= ")
-						it.write(current.title)
-						it.write(" =\n")
-
-						if (current.choices.isNotEmpty()) {
-							current.choices.forEach { choice ->
-								it.write(choice)
-								it.write("\n")
-							}
-						}
-						it.write("- - - -\n")
-						current.votes.forEach { vote ->
-							it.write(vote.name)
-							it.write(" = ")
-							it.write(vote.choice)
-							it.write("\n")
-						}
-						it.write("- - - -\n")
-						current.summary(it)
-					}
-			}
-			currentSession = null
-			return resp.redirect("summary.html?name=$name")
+	private suspend fun getFileFor(folder: String, name: String, suffix: String): File {
+		return withContext(Dispatchers.IO) {
+			var counter = 0
+			var file: File
+			do {
+				file = File(buildString {
+					append(folder)
+					append('/')
+					append(name)
+					if (counter != 0)
+						append('-').append(counter)
+					append(suffix)
+					counter += 1
+				})
+			} while (file.exists())
+			file
 		}
-		currentSession = null
-		resp.redirect("new_session.html")
 	}
 
-	@GetMapping("/current")
-	fun current() = currentSession?.strip() ?: Empty()
+	@GetMapping("/end")
+	suspend fun endMapping(@RequestParam("token") token: String, resp: ServerHttpResponse): StatusResponse<String> {
+		if (token != accessToken) return apiError("")
 
-	@GetMapping("/summary/{name}")
-	suspend fun summary(@PathVariable("name") name: String, resp: ServerHttpResponse): String {
-		val filename = name.replace(safePath,"-")
-		val file = File("votes/", "$filename.txt")
+		val current = currentSession
+		if (current != null && current.votes.isNotEmpty()) {
+			val output = getFileFor("votes", current.title.key, ".json")
+			withContext(Dispatchers.IO) {
+				output.outputStream().bufferedWriter().use {
+					json.writerWithDefaultPrettyPrinter().writeValue(it, current)
+				}
+			}
+			currentSession = null
+			val outputName = output.name
+			voteBoardcaster.boardcast(output.nameWithoutExtension)
+			voteBoardcaster.boardcast(null)
+			return ok(outputName)
+
+		}
+		currentSession = null
+		voteBoardcaster.boardcast(null)
+		return apiError("This session hasn't been saved")
+	}
+
+	@GetMapping("/current_session")
+	fun current(@RequestParam("token") token: String): StatusResponse<SessionStat<Int>> {
+		return (if (token == accessToken) {
+			currentSession?.strip()?.let(::ok)
+		} else {
+			null
+		}) ?: apiError("no session available")
+	}
+
+	@GetMapping("/summary/{key}")
+	suspend fun summary(
+		@PathVariable("key") name: String,
+		resp: ServerHttpResponse
+	): String {
+		val filename = name.replace(safePath, "-")
+		val file = File("votes/", "$filename.json")
 		return if (file.exists()) {
-			resp.headers.contentType = MediaType.TEXT_PLAIN
+			resp.headers.contentType = MediaType.APPLICATION_JSON
 			withContext(Dispatchers.IO) {
 				file.readText()
 			}
 		} else {
 			resp.statusCode = HttpStatus.NOT_FOUND
-			""
+			resp.headers.contentType = MediaType.APPLICATION_JSON
+			"{}"
 		}
 	}
+	@GetMapping("/check-token")
+	suspend fun checkToken(
+		@RequestParam("token") token: String
+	): StatusResponse<Boolean> = ok(token == accessToken)
 
 	@PostMapping("/vote")
-	fun vote(@ModelAttribute form: SessionVote, resp: ServerHttpResponse) {
-		val current = currentSession ?: return resp.redirect("vote.html")
+	suspend fun vote(@RequestParam("token") token: String, @ModelAttribute form: SessionVote): StatusResponse<Boolean> {
+		val session = currentSession
+		val current = session ?: return ok(false)
 
-		if (form.choice.isNotBlank() && form.name.isNotBlank()) {
-			if (!current.votes.any { it.name == form.name })
-				current.votes.add(form)
+		if (form.choice != 0 && form.name.isNotBlank()) {
+			val resp = ok(current.vote(form))
+			voteBoardcaster.boardcast(session.strip())
+			return resp
 		}
-		resp.redirect("vote.html")
+
+		return ok(false)
 	}
 }
