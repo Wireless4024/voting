@@ -132,6 +132,13 @@ class VotingController {
 			"{}"
 		}
 	}
+
+	@GetMapping("/attachments/add")
+	suspend fun addAttachment(@PathVariable("key") key: String, @RequestParam("url") url: String?) {
+		if (url.isNullOrEmpty() || currentSession == null) return
+		currentSession!!.attachments.add(url)
+	}
+
 	@GetMapping("/check-token")
 	suspend fun checkToken(
 		@RequestParam("token") token: String
