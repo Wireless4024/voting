@@ -1,17 +1,12 @@
 package com.wireless4024.voting
 
 import com.atlassian.jira.rest.client.api.JiraRestClient
-import com.atlassian.jira.rest.client.api.domain.input.FieldInput
-import com.atlassian.jira.rest.client.api.domain.input.IssueInput
 import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientFactory
 import com.wireless4024.voting.common.StatusResponse
 import com.wireless4024.voting.common.apiError
 import com.wireless4024.voting.common.ok
-import com.wireless4024.voting.jira.IssueStream
-import com.wireless4024.voting.jira.JiraIssue
-import com.wireless4024.voting.jira.JiraStore
+import com.wireless4024.voting.jira.*
 import com.wireless4024.voting.jira.JiraStore.issues
-import com.wireless4024.voting.jira.UpdateStoryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.reactor.asMono
 import org.slf4j.Logger
@@ -36,11 +31,17 @@ class JiraController {
 	@Value("\${voting.jira.password}")
 	var jiraPassword = ""
 
+	@Value("\${voting.jira.point_multiplier}")
+	var jiraPointMultiplier = 60
+
 	@Value("\${voting.jira.point_field}")
 	var jiraPointField = ""
 
 	@Value("\${voting.jira.query}")
 	var jiraQuery = ""
+
+	@Value("\${voting.jira.filter}")
+	var issueFilter = ""
 
 	@Value("\${voting.access-token}")
 	var accessToken = ""
@@ -49,6 +50,7 @@ class JiraController {
 		JiraStore.clear()
 		val stream = IssueStream(jiraUrl, jiraUsername, jiraPassword, jiraQuery)
 		for (issue in stream.allIssues()) {
+			if (issueFilter.isNotBlank() && !issue.key.startsWith(issueFilter)) continue
 			JiraStore.add(issue)
 		}
 		logger.info("fetch jira successfully")
@@ -62,8 +64,8 @@ class JiraController {
 	): Boolean {
 		if (token != accessToken) return false
 		if (jiraPointField.isBlank()) return false
-		client.issueClient.updateIssue(key, IssueInput.createWithFields(FieldInput(jiraPointField, form.point))).await()
-		return true
+
+		return false
 	}
 
 	@Autowired
