@@ -2,11 +2,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 
 plugins {
-	id("org.springframework.boot") version "3.0.0-M2"
+	id("org.springframework.boot") version "3.0.0-M3"
 	id("io.spring.dependency-management") version "1.0.11.RELEASE"
-	kotlin("jvm") version "1.6.20"
-	kotlin("plugin.spring") version "1.6.20"
-	kotlin("plugin.serialization") version "1.6.20"
+	kotlin("jvm") version "1.7.0"
+	kotlin("plugin.spring") version "1.7.0"
+	kotlin("plugin.serialization") version "1.7.0"
 }
 
 group = "com.wireless4024"
@@ -19,7 +19,7 @@ repositories {
 	maven { url = uri("https://packages.atlassian.com/mvn/maven-atlassian-external/") }
 }
 
-val ktor_version = "2.0.0"
+val ktor_version = "2.0.2"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
