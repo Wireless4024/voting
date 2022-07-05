@@ -12,6 +12,7 @@
 
 	export let summary: JiraSessionSummary
 	export let showSave: boolean = false
+	export let modifyAttachment: boolean = true
 
 	type SessionVoteSummary = {
 		choice: string,

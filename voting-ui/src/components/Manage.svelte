@@ -8,11 +8,11 @@
 	import Textfield                                       from '@smui/textfield';
 	import HelperText                                      from '@smui/textfield/helper-text';
 	import format_duration                                 from 'format-duration'
-	import {noop, onMount}        from "svelte/internal";
-	import {getToken, loadIssues} from "../ts/common/api";
-	import {TEXT_ONLY}            from "../ts/common/constants";
-	import {CURRENT_VOTE_SESSION, init, LAST_SUMMARY} from "../ts/common/current_vote";
-	import {DelayedExpr}                                            from "../ts/common/delayed_expr";
+	import {noop, onMount}                     from "svelte/internal";
+	import {getToken, loadIssues, loadSummary} from "../ts/common/api";
+	import {TEXT_ONLY}                                                  from "../ts/common/constants";
+	import {CURRENT_VOTE_SESSION, init, LAST_SUMMARY, LAST_SUMMARY_KEY} from "../ts/common/current_vote";
+	import {DelayedExpr}                                                from "../ts/common/delayed_expr";
 	import {HTTP_HOST}                                from "../ts/config";
 	import {CURRENT_TIMESTAMP}                        from "../ts/interval";
 	import type {Issue}                               from "../ts/types/jira";

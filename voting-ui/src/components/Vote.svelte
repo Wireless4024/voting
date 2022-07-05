@@ -23,6 +23,7 @@
 	}
 
 	async function vote(choice) {
+		if (!name) return alert("name is empty!")
 		console.log("voted", choice)
 		const fd = new FormData()
 		fd.append('name', name)
@@ -35,9 +36,9 @@
 
 	let current: Session<number>
 	$:current = $CURRENT_VOTE_SESSION
-	
-	let summary:JiraSessionSummary
-	$:summary=$LAST_SUMMARY
+
+	let summary: JiraSessionSummary
+	$:summary = $LAST_SUMMARY
 </script>
 {#if summary}
 	<Summary {summary}/>
@@ -46,7 +47,7 @@
 	{#if current}
 		<h1>{current.title}</h1>
 		<hr>
-		<h2>Voted by {current.voted?.length} 
+		<h2>Voted by {current.voted?.length}
 			({format_duration($CURRENT_TIMESTAMP - ($CURRENT_VOTE_SESSION)?.since)})</h2>
 		<hr>
 		{#if !current.voted?.filter(it => it.name === name)?.length}
@@ -57,10 +58,8 @@
 				<LayoutGrid>
 					{#each current.choices as choice}
 						<Cell spanDevices={{ desktop: 3, tablet: 4, phone: 4 }}>
-							<div class="demo-cell" style="height: 80px;">
-								<Button variant="raised"
-								        style="padding: 16pt 24pt"
-								        on:click={()=>vote(choice)}>{choice}</Button>
+							<div class="demo-cell" style="height: 80px;" on:click|self|trusted={()=>vote(choice)}>
+								<Button variant="raised" style="padding: 16pt 24pt">{choice}</Button>
 							</div>
 						</Cell>
 					{/each}
